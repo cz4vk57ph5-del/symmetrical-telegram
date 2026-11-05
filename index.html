@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sortino + Omega + PSR + Ulcer [Wall Street Pro]</title>
+<style>
+:root{--bg:#0f1115;--card:#171a21;--bd:#2a2f3a;--tx:#e8eaf0;--mu:#8b93a5;--g:#3ddc84;--r:#ff5c5c;--y:#ffd54a;--a:#4dd0e1}
+@media (prefers-color-scheme: light){:root{--bg:#f4f5f8;--card:#fff;--bd:#d9dce4;--tx:#1a1d24;--mu:#606878;--g:#0a8f4a;--r:#d32f2f;--y:#b58900;--a:#00838f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 -apple-system,system-ui,Segoe UI,Roboto,sans-serif;padding:12px;max-width:900px;margin:auto}
+h1{font-size:17px;margin:4px 0 10px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:12px}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--mu);flex:1 1 130px}
+input,button{font:inherit;padding:8px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);width:100%}
+button{background:var(--a);color:#000;border:0;font-weight:600;cursor:pointer;align-self:flex-end;flex:1 1 130px}
+.chk{flex-direction:row;align-items:center;gap:6px;color:var(--tx)}.chk input{width:auto}
+#grade{font-size:20px;font-weight:700;padding:12px;border-radius:10px;text-align:center;margin-bottom:10px}
+table{width:100%;border-collapse:collapse}
+td{padding:7px 4px;border-bottom:1px solid var(--bd)}
+td:last-child{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.g{color:var(--g)}.r{color:var(--r)}.y{color:var(--y)}.m{color:var(--mu)}
+canvas{width:100%;height:260px;display:block}
+#st{font-size:12px;color:var(--mu);margin-top:6px}
+#wrn{font-size:12px;font-weight:600;color:var(--y);margin-top:6px}
+.w{overflow-x:auto}
+.gauge{position:relative;height:14px;border-radius:7px;margin:34px 6px 8px;background:linear-gradient(90deg,var(--r) 0%,var(--r) 35%,var(--y) 42%,var(--y) 58%,var(--g) 65%,var(--g) 100%);opacity:.9}
+.gauge .mid{position:absolute;left:50%;top:-4px;bottom:-4px;width:2px;background:var(--tx);opacity:.6}
+.turtle{position:absolute;top:-30px;font-size:28px;line-height:1;transform:translateX(-50%);transition:left .6s ease;filter:drop-shadow(0 2px 2px rgba(0,0,0,.4))}
+.gl{display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin:0 6px}
+#zone{text-align:center;font-size:18px;font-weight:700;margin-top:8px}
+#parts{font-size:12px;color:var(--mu);text-align:center;margin-top:4px}
+#note{font-size:12px;color:var(--mu);margin-top:8px}
+</style>
+</head>
+<body>
+<h1>Sortino + Omega + PSR + Ulcer [Wall Street Pro]</h1>
+
+<div class="card">
+  <div class="row">
+    <label>Worker Yahoo
+      <input id="worker" value="https://yahooproxy.b864v27974.workers.dev">
+    </label>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <label>Dati<select id="mode" style="font:inherit;padding:8px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)"><option value="d">Giornalieri</option><option value="i">Da ore 9:00 (1 min)</option></select></label>
+    <label>Simbolo<input id="sym" value="QQQ"></label>
+    <label>Finestra (giorni)<input id="period" type="number" value="252" min="60"></label>
+    <label>Risk-free annuo %<input id="rf" type="number" value="4.5" step="0.1"></label>
+    <label>MAR annuo %<input id="mar" type="number" value="0" step="0.1"></label>
+    <label>Storico<input id="range" value="5y"></label>
+    <label class="chk"><input id="log" type="checkbox" checked> Rendimenti log</label>
+    <button id="go">Calcola</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <label>Sessioni intraday<select id="sess" style="font:inherit;padding:8px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)"><option value="a">Auto (pre+regolare+post)</option><option value="r">Solo sessione regolare</option></select></label>
+    <label>Barre/anno (vuoto = auto)<input id="ppyov" type="number" min="1" step="1" placeholder="auto"></label>
+    <label>Min. osservazioni<input id="minobs" type="number" min="10" step="1" value="30"></label>
+    <label>SR benchmark annuo (PSR)<input id="srb" type="number" step="0.1" value="0"></label>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <label>Peso Sortino<input id="w_so" type="number" min="0" step="1" value="30"></label>
+    <label>Peso Omega<input id="w_om" type="number" min="0" step="1" value="20"></label>
+    <label>Peso PSR<input id="w_ps" type="number" min="0" step="1" value="30"></label>
+    <label>Peso Martin<input id="w_ma" type="number" min="0" step="1" value="20"></label>
+  </div>
+  <div id="st"></div>
+  <div id="wrn"></div>
+</div>
+
+<div id="out" style="display:none">
+  <div class="card">
+    <div class="m" style="font-size:12px;text-align:center">QUALITÀ STATISTICA (0–100) · non indica la direzione</div>
+    <div class="gl"><span class="r">◀ BASSA</span><span class="m">media</span><span class="g">ALTA ▶</span></div>
+    <div class="gauge"><div class="mid"></div><div class="turtle" id="turtle">🐢</div></div>
+    <div id="zone"></div>
+    <div id="parts"></div>
+  </div>
+  <div class="card">
+    <div id="grade"></div>
+    <table id="tbl"></table>
+  </div>
+  <div class="card">
+    <div class="m" style="font-size:12px;margin-bottom:4px">DIREZIONE (separata dalla qualità): solo contesto descrittivo</div>
+    <table id="dir"></table>
+    <div id="note"></div>
+  </div>
+  <div class="card">
+    <div class="m" style="font-size:12px;margin-bottom:4px">Drawdown % rispetto al massimo della finestra (sfondo = qualità statistica storica)</div>
+    <div class="w"><canvas id="cv"></canvas></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const store = { get:k=>{try{return localStorage.getItem(k)}catch(e){return null}}, set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}} };
+$('worker').value = store.get('wk_worker') || 'https://yahooproxy.b864v27974.workers.dev';
+$('sym').value = store.get('wk_sym') || 'QQQ';
+const PERSIST = ['sess','ppyov','minobs','srb','w_so','w_om','w_ps','w_ma'];
+PERSIST.forEach(id=>{ const v = store.get('wk_'+id); if(v!=null) $(id).value = v; });
+
+// ===== CONFIGURAZIONE ESPLICITA =====
+// norm: [valore che vale 0 punti, valore che vale 100 punti], interpolazione lineare con clamp.
+// I punti medi (50) coincidono con le vecchie soglie "decenti": Sortino 1.5, Omega 1.5, PSR 50%, Martin 5.
+// I pesi sono nei campi "Peso ..." (normalizzati automaticamente a somma 100).
+const CFG = {
+  tradingDays: 252,        // giorni di borsa/anno, usato solo per annualizzare l'intraday
+  minObs: 30,              // minimo di rendimenti per calcolare le metriche (campo "Min. osservazioni")
+  limitedObs: 100,         // osservazioni EFFETTIVE (corrette per autocorrelazione) sotto le quali il campione e' "limitato"
+  minSessions: 60,         // durata minima (in sedute di borsa, ~3 mesi) per considerare adeguato il campione
+  acLags: 10,              // ritardi usati per l'autocorrelazione (Bartlett) e per il numero effettivo di osservazioni
+  minCoverage: 0.5,        // quota minima di peso coperta da metriche disponibili per avere un punteggio
+  annMinYears: 0.25,       // il rendimento si annualizza solo se la finestra dura almeno 3 mesi
+  norm: { sortino:[0,3], omega:[1,2], psr:[0,1], martin:[0,10] },
+  grades: [75,60,40]       // soglie dei gradi A / B / C (sotto = D)
+};
+const num = (id,d) => { const v = parseFloat($(id).value); return isFinite(v) ? v : d; };
+const fmt = (v,d=2) => (v==null||!isFinite(v)) ? 'n/d' : v.toFixed(d);
+const col = (v,hi,lo) => v==null ? 'm' : v>hi ? 'g' : v<lo ? 'r' : 'y';
+
+// CDF normale in doppia precisione (serie di Marsaglia + frazione continua nelle code)
+function normCDF(x){
+  if(x<-8) return 0; if(x>8) return 1;
+  if(Math.abs(x)<4){
+    let s=x, t=x;
+    for(let i=1;i<200;i++){ t*=x*x/(2*i+1); s+=t; if(Math.abs(t)<1e-17*Math.abs(s)) break; }
+    return 0.5 + s*Math.exp(-x*x/2)/Math.sqrt(2*Math.PI);
+  }
+  const ax = Math.abs(x); let f = 0;
+  for(let k=60;k>=1;k--) f = k/(ax+f);
+  const q = Math.exp(-ax*ax/2)/Math.sqrt(2*Math.PI)/(ax+f);
+  return x>0 ? 1-q : q;
+}
+
+const normSc = (v,k) => { if(v==null||!isFinite(v)) return null; const [lo,hi]=CFG.norm[k]; return 100*Math.max(0,Math.min(1,(v-lo)/(hi-lo))); };
+
+const absRet = r => r.map(v=>v==null?null:Math.abs(v));
+// Autocorrelazione campionaria al ritardo k sulla finestra [i0,i1] dell'array x (media e varianza della finestra)
+function acfAt(x, i0, i1, k){
+  const n=i1-i0+1; if(k>=n) return null;
+  let m=0; for(let j=i0;j<=i1;j++) m+=x[j]; m/=n;
+  let den=0, num=0;
+  for(let j=i0;j<=i1;j++){ const d=x[j]-m; den+=d*d; if(j-k>=i0) num+=d*(x[j-k]-m); }
+  return den>0 ? num/den : null;
+}
+// Numero effettivo di osservazioni: n / (1 + 2*sum_k (1-k/(K+1))*rho_k) con pesi di Bartlett; mai oltre n (autocorr. negativa non "aggiunge" dati)
+function effN(x, i0, i1, n){
+  const K = Math.min(CFG.acLags, Math.floor(n/4)); if(K<1) return {neff:n, rho1:null};
+  let S=1, rho1=null;
+  for(let k=1;k<=K;k++){ const r=acfAt(x,i0,i1,k); if(r==null) return {neff:n, rho1:null}; if(k===1) rho1=r; S += 2*(1-k/(K+1))*r; }
+  return {neff: Math.max(1, Math.min(n, n/Math.max(1,S))), rho1};
+}
+
+// Punteggio = media pesata delle sole metriche disponibili (pesi rinormalizzati); se la copertura e' bassa, nessun punteggio
+function scoreOf(parts, W){
+  let tot=0, sw=0, s=0;
+  for(const k in W){ tot += W[k]; if(parts[k]!=null && W[k]>0){ sw += W[k]; s += W[k]*parts[k]; } }
+  const coverage = tot>0 ? sw/tot : 0;
+  if(!(sw>0) || coverage < CFG.minCoverage) return {score:null, coverage};
+  return {score:s/sw, coverage};
+}
+
+// Metriche su UNA finestra di n rendimenti che termina in i1 (prezzi da i1-n a i1). Nessuna finestra annidata.
+function metricsAt(close, ret, i1, n, o){
+  const i0 = i1-n+1, ppy = o.ppy;
+  // Drawdown: massimo corrente che parte dall'inizio della finestra (close[i0-1]); Ulcer = radice della media dei dd^2
+  let pk = close[i0-1], s2 = 0, ddEnd = 0;
+  for(let j=i0;j<=i1;j++){ if(close[j]>pk) pk=close[j]; const d=(close[j]/pk-1)*100; s2+=d*d; ddEnd=d; }
+  const winRet = close[i1]/close[i0-1]-1;
+  const R = {n, ppy, dd:ddEnd, winRet, insuff:n<o.minObs, sessions:n/o.barsPerDay, neff:null, ac1:null, acAbs1:null, iidOk:null, reliab:'insuff', reasons:[], ulcer:null, annRet:null, annVol:null, sharpe:null, sortino:null, omega:null, psr:null, skew:null, kurt:null, martin:null, martinBasis:null, parts:{}, score:null, coverage:0};
+  if(R.insuff) return R;
+
+  // Rendimenti in eccesso rispetto al risk-free: stessa distribuzione usata dallo Sharpe e dal PSR
+  let sumE=0; for(let j=i0;j<=i1;j++) sumE+=ret[j]-o.rfP;
+  const mE = sumE/n;                        // media dei rendimenti in eccesso
+  const m = mE + o.rfP;                     // media dei rendimenti grezzi (per Sortino/Omega rispetto al MAR)
+  let m2=0, m3=0, m4=0, dd2=0, gn=0, ls=0;
+  for(let j=i0;j<=i1;j++){
+    const d=(ret[j]-o.rfP)-mE; m2+=d*d; m3+=d*d*d; m4+=d*d*d*d;  // momenti centrali degli eccessi (identici a quelli dei grezzi: sottrarre una costante non li cambia)
+    const x=ret[j]-o.marP; if(x<0){ dd2+=x*x; ls-=x; } else gn+=x;
+  }
+  m2/=n;                                   // varianza di popolazione (per i momenti)
+  const sdS = Math.sqrt(m2*n/(n-1));        // dev. std campionaria (per Sharpe e volatilita')
+  const sr  = sdS>1e-12 ? mE/sdS : null;        // Sharpe per-periodo (non annualizzato) = media eccessi / dev. std
+  R.annVol = sdS*Math.sqrt(ppy);
+  R.sharpe = sr==null ? null : sr*Math.sqrt(ppy);
+  const dDev = Math.sqrt(dd2/n);            // downside deviation su TUTTE le n osservazioni
+  R.sortino = dDev>0 ? (m-o.marP)/dDev*Math.sqrt(ppy) : null;
+  R.omega   = ls>0 ? gn/ls : null;
+  R.skew = m2>1e-24 ? (m3/n)/Math.pow(m2,1.5) : null;
+  R.kurt = m2>1e-24 ? (m4/n)/(m2*m2) : null;    // curtosi NON in eccesso (come richiede la formula PSR)
+  // PSR (Bailey & Lopez de Prado): Phi( (SR-SR*) sqrt(T-1) / sqrt(1 - g3*SR + (g4-1)/4*SR^2) ), SR e SR* per-periodo
+  if(n>=3 && sr!=null && R.skew!=null && R.kurt!=null){
+    const den2 = 1 - R.skew*sr + (R.kurt-1)/4*sr*sr;
+    if(den2>0 && isFinite(den2)){ const z=(sr-o.srB)*Math.sqrt(n-1)/Math.sqrt(den2); if(isFinite(z)) R.psr = normCDF(z); }
+  }
+  // Affidabilita': numero di osservazioni, durata, autocorrelazione dei rendimenti e della loro ampiezza (clustering di volatilita')
+  const ef = effN(ret, i0, i1, n);
+  R.neff = ef.neff; R.ac1 = ef.rho1;
+  R.acAbs1 = acfAt(o.absr, i0, i1, 1);
+  const zc = 1.96/Math.sqrt(n);
+  R.iidOk = !((R.ac1!=null && Math.abs(R.ac1)>zc) || (R.acAbs1!=null && R.acAbs1>zc));
+  if(R.sessions < CFG.minSessions) R.reasons.push(`durata ${R.sessions<10?R.sessions.toFixed(1):Math.round(R.sessions)} sedute (< ${CFG.minSessions}): ${n} osservazioni ravvicinate non equivalgono a uno storico lungo`);
+  if(R.neff < CFG.limitedObs) R.reasons.push(`osservazioni effettive ≈ ${Math.round(R.neff)} (< ${CFG.limitedObs})`);
+  R.reliab = R.reasons.length ? 'limited' : 'ok';
+  R.ulcer = Math.sqrt(s2/n);
+  const Ty = n/ppy;
+  if(Ty >= CFG.annMinYears) R.annRet = Math.pow(1+winRet, 1/Ty)-1;
+  if(R.ulcer>0){
+    if(R.annRet!=null){ R.martin = (R.annRet-o.rfAnn)*100/R.ulcer; R.martinBasis='ann'; }
+    else { R.martin = (winRet-(Math.pow(1+o.rfAnn,Ty)-1))*100/R.ulcer; R.martinBasis='win'; } // finestra corta: niente annualizzazione
+  }
+  // Denominatore nullo con numeratore positivo (nessuna perdita / nessun drawdown) = caso migliore: 100 punti, non "metrica mancante"
+  // (altrimenti il punteggio verrebbe ricalcolato sulle sole metriche restanti e sottostimato). Il valore mostrato resta n/d.
+  const sat = (v,k,pos) => v!=null ? normSc(v,k) : (pos ? 100 : null);
+  R.parts = { sortino:sat(R.sortino,'sortino', dDev===0 && (m-o.marP)>0), omega:sat(R.omega,'omega', ls===0 && gn>0),
+              psr:normSc(R.psr,'psr'),
+              martin:sat(R.martin,'martin', R.ulcer===0 && (R.annRet!=null ? R.annRet-o.rfAnn : winRet-(Math.pow(1+o.rfAnn,Ty)-1))>0) };
+  const sc = scoreOf(R.parts, o.W); R.score = sc.score; R.coverage = sc.coverage;
+  return R;
+}
+
+function compute(close, P, o, onlyLast){
+  const n = close.length;
+  const ret = close.map((c,i)=> i===0 ? null : (o.useLog ? Math.log(c/close[i-1]) : c/close[i-1]-1));
+  o.absr = absRet(ret);
+  const res = new Array(n).fill(null);
+  for(let i=(onlyLast?n-1:P); i<n; i++) res[i] = metricsAt(close, ret, i, P, o);
+  return res;
+}
+
+function readOpts(ppy, barsPerDay){
+  const useLog = $('log').checked, rfAnn = num('rf',0)/100, marAnn = num('mar',0)/100;
+  const per = a => useLog ? Math.log1p(a)/ppy : Math.pow(1+a,1/ppy)-1; // tasso per-periodo coerente col tipo di rendimento
+  const pos = (id,d) => Math.max(0, num(id,d));
+  return { ppy, barsPerDay:barsPerDay||1, useLog, rfAnn, marAnn, rfP:per(rfAnn), marP:per(marAnn), srB:num('srb',0)/Math.sqrt(ppy),
+           minObs:Math.max(10,Math.round(num('minobs',CFG.minObs))),
+           W:{ sortino:pos('w_so',30), omega:pos('w_om',20), psr:pos('w_ps',30), martin:pos('w_ma',20) } };
+}
+
+function gradeOf(s){
+  return s==null ? ['—','Qualità non valutabile','rgba(150,150,150,.12)','var(--mu)']
+       : s>=CFG.grades[0] ? ['A 级:机构可投','A — qualità statistica eccellente','rgba(61,220,132,.30)','var(--g)']
+       : s>=CFG.grades[1] ? ['B 级:合格','B — qualità buona','rgba(170,230,80,.25)','var(--g)']
+       : s>=CFG.grades[2] ? ['C 级:平庸','C — qualità mediocre','rgba(150,150,150,.20)','var(--mu)']
+       : ['D 级:差/避免','D — qualità scarsa','rgba(255,92,92,.30)','var(--r)'];
+}
+
+// Tartaruga: posizione = punteggio qualità (0 = sinistra, 100 = destra). Nessuna indicazione LONG/SHORT.
+function drawTurtle(L, W){
+  const tt = $('turtle');
+  if(L.score==null){
+    tt.style.left='50%'; tt.style.opacity=.3;
+    $('zone').className='m'; $('zone').textContent = L.insuff ? 'Campione insufficiente' : 'Dati insufficienti';
+    $('parts').textContent=''; return;
+  }
+  tt.style.opacity=1; tt.style.left = L.score+'%';
+  const z = L.score>=CFG.grades[1] ? ['QUALITÀ ALTA','g'] : L.score>=CFG.grades[2] ? ['QUALITÀ MEDIA','y'] : ['QUALITÀ BASSA','r'];
+  $('zone').className = z[1];
+  $('zone').textContent = z[0]+' ('+L.score.toFixed(0)+'/100)';
+  const tw = W.sortino+W.omega+W.psr+W.martin;
+  const lab = {sortino:'Sortino',omega:'Omega',psr:'PSR',martin:'Martin'};
+  $('parts').textContent = Object.keys(lab).map(k=> lab[k]+' '+(L.parts[k]==null?'n/d':L.parts[k].toFixed(0))+' ('+(tw>0?Math.round(100*W[k]/tw):0)+'%)').join(' · ');
+}
+
+function render(sym, dates, close, res, o){
+  const L = res[res.length-1];
+  if(!L){ $('st').textContent='Dati insufficienti per la finestra scelta.'; return; }
+  const g = gradeOf(L.score);
+  const gd = $('grade');
+  gd.textContent = L.insuff ? `Campione insufficiente (n=${L.n} < ${o.minObs})`
+                 : L.score==null ? 'Punteggio non calcolabile (metriche mancanti)'
+                 : g[1]+' · '+L.score.toFixed(0)+'/100';
+  gd.style.background = g[2]; gd.style.color = g[3];
+  const nCol = L.insuff ? 'r' : (L.reliab==='limited' ? 'y' : 'g');
+  const durTxt = L.sessions<10 ? L.sessions.toFixed(1) : String(Math.round(L.sessions));
+  const rows = [
+    ['Ultimo dato', dates[dates.length-1]+' · '+fmt(close[close.length-1]), 'm'],
+    ['Osservazioni usate (rendimenti)', String(L.n), nCol],
+    ['Durata campione (sedute di borsa)', durTxt, L.insuff?'r':(L.sessions<CFG.minSessions?'y':'g')],
+    ['Osservazioni effettive (corr. autocorr.)', L.neff==null?'n/d':String(Math.round(L.neff)), L.neff==null?'m':(L.neff<CFG.limitedObs?'y':'g')],
+    ['Autocorrelazione rendimenti (ρ1)', fmt(L.ac1), L.ac1==null?'m':(Math.abs(L.ac1)>1.96/Math.sqrt(L.n)?'y':'m')],
+    ['Ipotesi iid del PSR', L.iidOk==null?'n/d':(L.iidOk?'plausibile':'poco plausibile'), L.iidOk==null?'m':(L.iidOk?'g':'y')],
+    ['Affidabilità campione (non è una probabilità)', L.insuff?'insufficiente':(L.reliab==='limited'?'limitata':'adeguata'), nCol],
+    ['Barre/anno usate', String(Math.round(L.ppy)), 'm'],
+    ['Rendimento annualizzato', L.annRet==null?(L.insuff?'n/d':'n/d (finestra < 3 mesi)'):fmt(L.annRet*100)+'%', L.annRet==null?'m':(L.annRet>0?'g':'r')],
+    ['Volatilità annualizzata', L.annVol==null?'n/d':fmt(L.annVol*100)+'%', 'm'],
+    ['Sharpe (classico)', fmt(L.sharpe), L.sharpe==null?'m':(L.sharpe>1?'g':'r')],
+    ['Sortino (solo ribasso)', fmt(L.sortino), col(L.sortino,1.5,0.5)],
+    ['Omega (intera distribuzione)', fmt(L.omega), col(L.omega,1.5,1)],
+    ['PSR (confidenza SR storico > benchmark)', L.psr==null?'n/d':fmt(L.psr*100,1)+'%', col(L.psr,0.95,0.5)],
+    ['Asimmetria (Skew)', fmt(L.skew), L.skew==null?'m':(L.skew>0?'g':'r')],
+    ['Curtosi (Kurt)', fmt(L.kurt), L.kurt==null?'m':(L.kurt>5?'r':'m')],
+    ['Ulcer Index', fmt(L.ulcer), L.ulcer==null?'m':(L.ulcer>10?'r':'g')],
+    ['Martin Ratio'+(L.martinBasis==='win'?' (base finestra)':''), fmt(L.martin), col(L.martin,5,1)],
+    ['Punteggio qualità (0–100)', fmt(L.score,0), L.score==null?'m':(L.score>=CFG.grades[1]?'g':(L.score>=CFG.grades[2]?'y':'r'))],
+    ['Copertura metriche nel punteggio', L.insuff?'n/d':(L.coverage*100).toFixed(0)+'%', L.insuff?'m':(L.coverage<1?'y':'m')]
+  ];
+  $('tbl').innerHTML = rows.map(r=>`<tr><td>${r[0]}</td><td class="${r[2]}">${r[1]}</td></tr>`).join('');
+  // Direzione: solo contesto descrittivo, indipendente dalle metriche di qualità
+  const w = close.slice(close.length-1-L.n), mean = w.reduce((a,b)=>a+b,0)/w.length;
+  const vsMean = close[close.length-1]/mean-1;
+  const drows = [
+    ['Rendimento della finestra', fmt(L.winRet*100)+'%', L.winRet>0?'g':'r'],
+    ['Prezzo vs media della finestra', fmt(vsMean*100)+'%', vsMean>0?'g':'r'],
+    ['Segnale LONG/SHORT', 'non fornito', 'm']
+  ];
+  $('dir').innerHTML = drows.map(r=>`<tr><td>${r[0]}</td><td class="${r[2]}">${r[1]}</td></tr>`).join('');
+  $('note').textContent = 'La qualità statistica descrive quanto è robusto e regolare il comportamento storico (rendimento corretto per il rischio, forma della distribuzione, drawdown): non dice se andare LONG o SHORT. Il PSR è la confidenza statistica che lo Sharpe storico superi la soglia, assumendo rendimenti indipendenti e identicamente distribuiti (ipotesi poco plausibile con candele a 1 minuto: vedi autocorrelazione e osservazioni effettive); NON è la probabilità di guadagno futuro. L\'affidabilità del campione tiene conto di durata e autocorrelazione, ma non è una probabilità di profitto.';
+  $('out').style.display='block';
+  drawTurtle(L, o.W);
+  draw(res);
+}
+
+function warnOf(res, o){
+  const L = res[res.length-1]; if(!L) return '';
+  if(L.insuff) return ` · ⚠ campione insufficiente (n=${L.n}, minimo ${o.minObs}): metriche non calcolate`;
+  let w = '';
+  if(L.reliab==='limited') w += ` · ⚠ affidabilità limitata: ${L.reasons.join('; ')}`;
+  if(L.iidOk===false) w += ' · ⚠ autocorrelazione/clustering: ipotesi iid del PSR poco plausibile';
+  return w;
+}
+
+function draw(res){
+  const cv = $('cv'), dpr = window.devicePixelRatio||1;
+  const W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W*dpr; cv.height = H*dpr;
+  const c = cv.getContext('2d'); c.scale(dpr,dpr);
+  const css = getComputedStyle(document.documentElement);
+  const pts = res.map((r,i)=>r?{i,dd:r.dd,s:r.score}:null).filter(Boolean);
+  if(!pts.length) return;
+  const mn = Math.min(-25, Math.min(...pts.map(p=>p.dd))*1.05), mx = 2;
+  const x = k => 36 + k/(pts.length-1||1)*(W-44), y = v => 8 + (mx-v)/(mx-mn)*(H-24);
+  const bw = Math.max(1,(W-44)/pts.length+0.5);
+  pts.forEach((p,k)=>{ c.fillStyle = gradeOf(p.s)[2]; c.fillRect(x(k),8,bw,H-24); });
+  c.font='11px sans-serif'; c.textBaseline='middle';
+  [[0,'0',css.getPropertyValue('--tx'),[6,4]],[-10,'-10%','#ff9800',[2,3]],[-20,'-20%','#ff5c5c',[2,3]]].forEach(([v,t,col,d])=>{
+    if(v<mn) return;
+    c.strokeStyle=col.trim(); c.setLineDash(d); c.beginPath(); c.moveTo(36,y(v)); c.lineTo(W-8,y(v)); c.stroke();
+    c.setLineDash([]); c.fillStyle=css.getPropertyValue('--mu'); c.fillText(t,2,y(v));
+  });
+  c.strokeStyle='#ff5c5c'; c.lineWidth=2; c.beginPath();
+  pts.forEach((p,k)=>{ k?c.lineTo(x(k),y(p.dd)):c.moveTo(x(k),y(p.dd)); }); c.stroke();
+}
+
+function workerUrl(base,sym,range,interval){
+  return base + (base.includes('?')?'&':'?') + `symbol=${encodeURIComponent(sym)}&interval=${interval}&range=${encodeURIComponent(range)}`;
+}
+
+// ----- sessioni di mercato (da meta.currentTradingPeriod di Yahoo) -----
+const fmtCache = {};
+function minOfDay(t,tz){
+  const f = fmtCache[tz] || (fmtCache[tz] = new Intl.DateTimeFormat('en-GB',{timeZone:tz,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}));
+  let h=0,m=0;
+  f.formatToParts(new Date(t*1000)).forEach(p=>{ if(p.type==='hour') h=+p.value; else if(p.type==='minute') m=+p.value; });
+  return h*60+m;
+}
+function sessionsOf(meta,tz){
+  const c = meta && meta.currentTradingPeriod; if(!c) return null;
+  const S = {};
+  ['pre','regular','post'].forEach(k=>{ const s=c[k]; if(s && s.start && s.end && s.end>s.start) S[k]={s:minOfDay(s.start,tz), e:minOfDay(s.end,tz), len:Math.round((s.end-s.start)/60)}; });
+  return Object.keys(S).length ? S : null;
+}
+function segOf(t,S,tz){
+  const mo = minOfDay(t,tz);
+  for(const k in S){ const {s,e}=S[k]; if(s<e ? (mo>=s&&mo<e) : (mo>=s||mo<e)) return k; }
+  return null;
+}
+// barre/anno giornaliere stimate dai dati effettivi (~252 azioni, ~365 crypto)
+function estPPY(tsv){
+  const n = tsv.length, span = (tsv[n-1]-tsv[0])/(365.25*86400);
+  return (n>=40 && span>=0.5) ? Math.round((n-1)/span) : CFG.tradingDays;
+}
+
+let last = null, busy = false;
+async function run(){
+  if(busy) return;
+  const wk = $('worker').value.trim(), sym = $('sym').value.trim().toUpperCase();
+  if(!wk){ $('st').textContent='Inserisci l\'URL del Worker Yahoo.'; return; }
+  store.set('wk_worker',wk); store.set('wk_sym',sym);
+  PERSIST.forEach(id=>store.set('wk_'+id,$(id).value));
+  const P = Math.max(60, parseInt($('period').value)||252);
+  $('st').textContent='Scarico dati…'; $('go').disabled = true; busy = true;
+  let wrnTxt = ''; $('wrn').textContent = '';
+  try{
+    const intra = $('mode').value==='i';
+    const r = await fetch(workerUrl(wk, sym, intra?'1d':($('range').value.trim()||'5y'), intra?'1m':'1d'));
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j = await r.json();
+    const res0 = j.chart && j.chart.result && j.chart.result[0];
+    if(!res0) throw new Error((j.chart&&j.chart.error&&j.chart.error.description)||'risposta senza dati');
+    const ts = res0.timestamp, cl = res0.indicators.quote[0].close;
+    const gr = res0.meta && res0.meta.dataGranularity;
+    if(gr && gr!==(intra?'1m':'1d')) throw new Error('il Worker ha restituito dati '+gr+' (simbolo '+res0.meta.symbol+') invece di '+(intra?'1 minuto':'giornalieri')+': i parametri symbol/interval/range non sono stati accettati');
+    if(res0.meta && res0.meta.symbol && res0.meta.symbol.toUpperCase()!==sym) throw new Error('il Worker ha restituito '+res0.meta.symbol+' invece di '+sym);
+    const tz = res0.meta && res0.meta.exchangeTimezoneName || 'America/New_York';
+    const dates=[], close=[];
+    const ov = num('ppyov',0);
+    if(intra){
+      const rome = t => new Date(t*1000).toLocaleString('sv-SE',{timeZone:'Europe/Rome'}); // "YYYY-MM-DD HH:MM:SS"
+      let day=null;
+      ts.forEach((t,i)=>{ if(cl[i]!=null) day = rome(t).slice(0,10); });
+      const S = sessionsOf(res0.meta, tz);
+      const wantReg = $('sess').value==='r';
+      const regOk = !!(S && S.regular);
+      const onlyReg = wantReg && regOk;
+      if(wantReg && !regOk) wrnTxt = '⚠ «Solo sessione regolare» NON applicata: Yahoo non ha fornito le sessioni (meta.currentTradingPeriod.regular). I dati includono tutte le barre disponibili e le barre/anno sono assunte su 390 min/giorno.';
+      const bars = [];
+      ts.forEach((t,i)=>{
+        if(cl[i]==null) return;
+        const rr = rome(t);
+        if(rr.slice(0,10)!==day || rr.slice(11,16)<'09:00') return;
+        const seg = S ? segOf(t,S,tz) : null;
+        if(onlyReg && seg!=='regular') return;
+        bars.push([rr.slice(11,16), cl[i], seg]);
+      });
+      bars.forEach(b=>{ dates.push(b[0]); close.push(b[1]); });
+      if(close.length < 5) throw new Error(`solo ${close.length} barre dalle 9:00 ora italiana del ${day}${onlyReg?' nella sessione regolare (forse non ancora aperta)':''}: troppo poche per qualsiasi calcolo`);
+      // barre/anno = giorni di borsa × barre da 1 min per sessione, secondo le sessioni effettivamente presenti nei dati
+      const act = {}; bars.forEach(b=>{ if(b[2]) act[b[2]]=1; });
+      const keys = Object.keys(act);
+      const known = S && keys.length;
+      const minutes = known ? keys.reduce((a,k)=>a+S[k].len,0) : 390;
+      const sessTxt = known ? keys.join('+') : 'regolare (assunta: sessioni non rilevate)';
+      const ppy = ov>0 ? ov : CFG.tradingDays*minutes;
+      const o = readOpts(ppy, minutes);
+      const out = compute(close, close.length-1, o, true);
+      const L = out[out.length-1];
+      let pk=-Infinity;
+      for(let i=0;i<close.length;i++){ pk=Math.max(pk,close[i]); if(i<close.length-1) out[i]={dd:(close[i]-pk)/pk*100,score:L.score}; }
+      last = {dates,close,out};
+      render(sym,dates,close,out,o);
+      $('st').textContent = `${sym} · ${close.length} barre da 1 min · ${day} dalle ${dates[0]} alle ${dates[dates.length-1]} (ora italiana) · finestra = tutto il periodo · sessioni: ${sessTxt} (${minutes} barre/giorno) · barre/anno ${Math.round(ppy)} ${ov>0?'(manuale)':'(auto)'}`+warnOf(out,o);
+      $('wrn').textContent = wrnTxt;
+      return;
+    }
+    const tsv = [];
+    ts.forEach((t,i)=>{ if(cl[i]!=null){ dates.push(new Date(t*1000).toLocaleDateString('sv-SE',{timeZone:tz})); close.push(cl[i]); tsv.push(t); } });
+    if(close.length < P+5) throw new Error(`solo ${close.length} barre: servono più di ${P+1} (aumenta Storico)`);
+    const ppy = ov>0 ? ov : estPPY(tsv);
+    const o = readOpts(ppy, 1);
+    const out = compute(close, P, o, false);
+    last = {dates,close,out};
+    render(sym,dates,close,out,o);
+    $('st').textContent = `${sym} · ${close.length} barre giornaliere · ultimo dato ${dates[dates.length-1]} (${tz}) · finestra ${P} rendimenti · barre/anno ${Math.round(ppy)} ${ov>0?'(manuale)':'(stimate dai dati)'}`+warnOf(out,o);
+  }catch(e){
+    $('st').textContent = 'Errore: '+e.message; $('wrn').textContent = '';
+  }finally{ $('go').disabled=false; busy=false; }
+}
+$('go').onclick = run;
+window.addEventListener('resize',()=>{ if(last) draw(last.out); });
+if($('worker').value) run();
+setInterval(()=>{ if($('mode').value==='i' && $('worker').value.trim()) run(); }, 10000); // aggiornamento automatico ogni 10 s (solo modalità 1 minuto)
+</script>
+</body>
+</html>
